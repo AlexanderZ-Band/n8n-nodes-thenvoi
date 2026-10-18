@@ -5,7 +5,6 @@ import {
 	getErrorMessage,
 	INVALID_AUTH_TOKEN_ERROR_MESSAGE,
 	isBandAuthError,
-	logError,
 } from '../utils/errors';
 import { raceWithTimeout } from '../utils/timeout';
 import { ConnectionDiagnostics } from '../utils/diagnostics';
@@ -30,27 +29,13 @@ const CONNECTION_TIMEOUT = 10000;
 // ============================================================================
 
 /**
- * Creates a socket logger function that formats Phoenix socket messages
- */
-function createSocketLogger(logger: Logger, diagnostics: ConnectionDiagnostics) {
-	return (kind: string, msg: string) => {
-		logger.info(diagnostics.text(`Socket ${kind}: ${msg}`));
-	};
-}
-
-/**
  * Creates socket options for Phoenix socket configuration
  */
-function createSocketOptions(
-	config: SocketConfig,
-	logger: Logger,
-	diagnostics: ConnectionDiagnostics,
-) {
+function createSocketOptions(config: SocketConfig) {
 	return {
 		params: {
 			agent_id: config.agentId,
 		},
-		logger: createSocketLogger(logger, diagnostics),
 		reconnectAfterMs: config.reconnectAfterMs || DEFAULT_RECONNECT_STRATEGY,
 		transport: createBandWebSocket(config.apiKey),
 	};
@@ -62,7 +47,6 @@ function createSocketOptions(
 function handleSocketOpen(
 	socket: Socket,
 	logger: Logger,
-	diagnostics: ConnectionDiagnostics,
 	isInitialConnection: boolean,
 	onInitialConnect?: (socket: Socket) => void,
 	onReconnect?: () => void | Promise<void>,
@@ -76,8 +60,8 @@ function handleSocketOpen(
 			// Call reconnection callback asynchronously to avoid blocking socket
 			Promise.resolve()
 				.then(onReconnect)
-				.catch((error) => {
-					logError(logger, 'SocketManager: Reconnection callback failed', diagnostics.error(error));
+				.catch(() => {
+					logger.error('SocketManager: Reconnection callback failed');
 				});
 		}
 	}
@@ -89,21 +73,13 @@ function handleSocketOpen(
 function setupSocketLifecycleListeners(
 	socket: Socket,
 	logger: Logger,
-	diagnostics: ConnectionDiagnostics,
 	onInitialConnect?: (socket: Socket) => void,
 	onReconnect?: () => void | Promise<void>,
 ): void {
 	let isInitialConnection = true;
 
 	socket.onOpen(() => {
-		handleSocketOpen(
-			socket,
-			logger,
-			diagnostics,
-			isInitialConnection,
-			onInitialConnect,
-			onReconnect,
-		);
+		handleSocketOpen(socket, logger, isInitialConnection, onInitialConnect, onReconnect);
 		if (isInitialConnection) {
 			isInitialConnection = false;
 		}
@@ -113,8 +89,8 @@ function setupSocketLifecycleListeners(
 		logger.info('SocketManager: Socket connection closed');
 	});
 
-	socket.onError((error: string | number | Event) => {
-		logError(logger, 'SocketManager: WebSocket connection error', diagnostics.error(error));
+	socket.onError(() => {
+		logger.error('SocketManager: WebSocket connection error');
 	});
 }
 
@@ -135,7 +111,7 @@ function createConnectionPromise(
 			resolve(connectedSocket);
 		};
 
-		setupSocketLifecycleListeners(socket, logger, diagnostics, onInitialConnect, onReconnect);
+		setupSocketLifecycleListeners(socket, logger, onInitialConnect, onReconnect);
 
 		socket.onError((error: string | number | Event) => {
 			if (!isResolved) {
@@ -163,7 +139,7 @@ function createConnectionPromise(
 export async function createSocket(config: SocketConfig, logger: Logger): Promise<Socket> {
 	const diagnostics = new ConnectionDiagnostics(config.apiKey);
 	const socketUrl = getSocketUrl(config.serverUrl);
-	const socketOptions = createSocketOptions(config, logger, diagnostics);
+	const socketOptions = createSocketOptions(config);
 	const socket = new Socket(socketUrl, socketOptions);
 
 	// Wait for initial connection to be established (lifecycle listeners set up inside)

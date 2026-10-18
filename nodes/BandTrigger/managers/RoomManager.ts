@@ -179,9 +179,7 @@ export class RoomManager {
 			const filteredConfig = this.config as FilteredRoomsConfig;
 
 			if (!this.shouldSubscribeToRoom(room, filteredConfig)) {
-				this.logger.debug(
-					`Room ${room.id} does not match filter criteria, skipping auto-subscribe`,
-				);
+				this.logger.debug(`Room does not match filter criteria, skipping auto-subscribe`);
 				return;
 			}
 		}
@@ -221,9 +219,9 @@ export class RoomManager {
 			try {
 				leaveSubscriptionChannels(subscription);
 				this.subscriptions.delete(roomId);
-				this.logger.info(`Unsubscribed from room: ${roomId}`);
+				this.logger.info(`Unsubscribed from room`);
 			} catch (error) {
-				logError(this.logger, `Failed to unsubscribe from room: ${roomId}`, error);
+				logError(this.logger, `Failed to unsubscribe from room`, error);
 			}
 		}
 	}

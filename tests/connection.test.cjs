@@ -292,3 +292,90 @@ test('literal percent escapes and regular expression punctuation in credentials 
 		assert.equal(diagnostic.text(`echo ${encodeURIComponent(secret)}`), 'echo [REDACTED]');
 	}
 });
+
+test('raw connection logs omit untrusted channel payloads and HTTP user content', async (t) => {
+	const marker = 'synthetic-person@example.invalid 198.51.100.7 private-user-message';
+	const { HttpClient } = require('../dist/lib/http/client');
+	const { createAndJoinChannel } = require('../dist/lib/socket/channels');
+	const { logger, records } = captureLogger();
+	const p = await peer(t, {
+		response: { data: { email: marker } },
+		status: 200,
+		joinResponse: { profile: marker, cookie: 'session=synthetic-session' },
+	});
+	const http = new HttpClient(creds(p.serverUrl), logger);
+	assert.deepEqual(await http.get('/agent/me'), { data: { email: marker } });
+	const socket = await createSocket(creds(p.serverUrl), logger);
+	t.after(() => socket.disconnect());
+	await createAndJoinChannel(socket, { channelName: `chat_room:${marker}`, events: {}, logger });
+	const failed = await peer(t, {
+		response: { error: { message: marker, request_id: marker } },
+		status: 400,
+		joinStatus: 'error',
+		joinResponse: { message: marker, cookie: 'session=synthetic-session' },
+	});
+	await assert.rejects(
+		new HttpClient(creds(failed.serverUrl), logger).post('/messages', { content: marker }),
+	);
+	const refusedSocket = await createSocket(creds(failed.serverUrl), logger);
+	t.after(() => refusedSocket.disconnect());
+	await assert.rejects(
+		createAndJoinChannel(refusedSocket, { channelName: `chat_room:${marker}`, events: {}, logger }),
+		/Unable to join Band channel/,
+	);
+	assert.equal(
+		inspect(records, { depth: null }).includes(marker),
+		false,
+		'Raw logger received user content',
+	);
+	assert.equal(
+		inspect(records, { depth: null }).includes('synthetic-session'),
+		false,
+		'Raw logger received a cookie',
+	);
+	assert.ok(records.some(({ args }) => args[0] === 'HTTP request failed'));
+});
+
+test('node diagnostic view preserves native context binding and callback outputs while dropping private logs', async () => {
+	require('module-alias/register');
+	const { diagnosticContext } = require('../dist/lib/utils/logging');
+	const {
+		handleLLMStart,
+		handleLLMError,
+		handleLLMEnd,
+	} = require('../dist/nodes/BandAgent/handlers/callbacks/llmCallbacks');
+	const { handleChainStart } = require('../dist/nodes/BandAgent/handlers/callbacks/chainCallbacks');
+	const marker = 'synthetic-person@example.invalid 198.51.100.7 private-user-content';
+	const { logger, records } = captureLogger();
+	class NativeContext {
+		#node = 'native-context';
+		constructor() {
+			Object.defineProperty(this, 'logger', { value: Object.freeze(logger) });
+		}
+		getNode() {
+			return this.#node;
+		}
+	}
+	const native = new NativeContext();
+	const executionContext = diagnosticContext(native);
+	const queued = [];
+	const ctx = {
+		executionContext,
+		options: { collectModelThoughts: true, sendIntermediateThoughts: true },
+		messageQueue: { enqueue: (...args) => queued.push(args) },
+	};
+	assert.equal(executionContext.getNode(), 'native-context');
+	assert.equal(native.logger, logger);
+	await handleLLMStart(ctx, { name: marker }, [marker], marker);
+	await handleChainStart(ctx, { name: marker }, { [marker]: marker }, marker);
+	await handleLLMError(ctx, new Error(marker), marker);
+	const output = await handleLLMEnd(ctx, { generations: [[{ text: marker }]] }, marker);
+	assert.equal(output, marker);
+	assert.deepEqual(queued, [
+		['error', marker],
+		['thought', marker],
+	]);
+	assert.equal(inspect(records, { depth: null }).includes(marker), false);
+	assert.ok(records.some(({ args }) => args[0] === 'LLM execution error'));
+	assert.ok(records.some(({ args }) => args[1].promptCount === 1));
+});

@@ -7,7 +7,16 @@ const { WebSocketServer } = require('ws');
 
 async function peer(
 	t,
-	{ secure = true, refuse = false, response, status, redirect, hold = false } = {},
+	{
+		secure = true,
+		refuse = false,
+		response,
+		status,
+		redirect,
+		hold = false,
+		joinResponse = {},
+		joinStatus = 'ok',
+	} = {},
 ) {
 	const requests = [],
 		events = new EventEmitter(),
@@ -48,7 +57,15 @@ async function peer(
 			connections.push(ws);
 			ws.on('message', (data) => {
 				const [joinRef, ref, topic, event] = JSON.parse(data.toString());
-				ws.send(JSON.stringify([joinRef, ref, topic, 'phx_reply', { status: 'ok', response: {} }]));
+				ws.send(
+					JSON.stringify([
+						joinRef,
+						ref,
+						topic,
+						'phx_reply',
+						{ status: joinStatus, response: joinResponse },
+					]),
+				);
 			});
 		});
 	});

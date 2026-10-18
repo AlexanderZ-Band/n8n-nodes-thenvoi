@@ -11,12 +11,31 @@ const additional = runtimeRequire('n8n/dist/workflow-execute-additional-data');
 const { CredentialTestContext } = runtimeRequire('n8n-core');
 const { BandTrigger } = require('../dist/nodes/BandTrigger/BandTrigger.node');
 const { BandApi } = require('../dist/credentials/BandApi.credentials');
+const { diagnosticContext } = require('../dist/lib/utils/logging');
+const { NodeExecutionContext } = runtimeRequire(
+	'n8n-core/dist/execution-engine/node-execution-context/node-execution-context',
+);
 const { peer, captureLogger } = require('./peer.cjs');
 (async () => {
 	const cleanup = [];
 	const p = await peer({ after: (f) => cleanup.push(f) });
 	const { logger, records } = captureLogger();
 	const secret = 'runtime-synthetic-key +/&=';
+	const native = new NodeExecutionContext(
+		{ id: 'synthetic-workflow', name: 'synthetic', active: false },
+		{ name: 'synthetic-node' },
+		{ executionId: 'synthetic-execution' },
+		'manual',
+	);
+	const view = diagnosticContext(native);
+	assert.notEqual(view.logger, native.logger);
+	view.logger.debug('Native execution context view validated', {
+		inputLength: 1,
+		ignored: 'synthetic-private-metadata',
+	});
+	assert.equal(view.getExecutionId(), 'synthetic-execution');
+	assert.equal(view.getNode().name, 'synthetic-node');
+	assert.equal(view.getWorkflow().id, 'synthetic-workflow');
 	const node = new BandTrigger();
 	const credentialType = new BandApi();
 	assert.equal(credentialType.test, undefined);
@@ -68,6 +87,7 @@ const { peer, captureLogger } = require('./peer.cjs');
 			n8nCore: runtimeRequire('n8n-core/package.json').version,
 			credentialServiceDispatch: true,
 			realCredentialTestContext: true,
+			realExecutionContextView: true,
 			httpHeaderOnly: true,
 			legacyQueryRemoved: true,
 			rawDiagnosticsClean: true,

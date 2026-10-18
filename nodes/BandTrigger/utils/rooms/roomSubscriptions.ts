@@ -29,13 +29,13 @@ async function handleRoomAdded(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`New room detected: ${room.id}`);
+		logger.info(`New room detected`);
 		await onRoomAdded({
 			...room,
 			updated_at: new Date().toISOString(),
 		});
 	} catch (error) {
-		logError(logger, `Failed to auto-subscribe to room: ${room.id}`, error);
+		logError(logger, `Failed to auto-subscribe to room`, error);
 	}
 }
 
@@ -48,10 +48,10 @@ async function handleRoomRemoved(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`Room removed event received: ${event.id}`);
+		logger.info(`Room removed event received`);
 		await onRoomRemoved(event.id);
 	} catch (error) {
-		logError(logger, `Failed to handle room_removed for room: ${event.id}`, error);
+		logError(logger, `Failed to handle room_removed for room`, error);
 	}
 }
 
@@ -64,10 +64,10 @@ async function handleRoomDeleted(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`Room deleted event received: ${event.id}`);
+		logger.info(`Room deleted event received`);
 		await onRoomDeleted(event.id);
 	} catch (error) {
-		logError(logger, `Failed to handle room_deleted for room: ${event.id}`, error);
+		logError(logger, `Failed to handle room_deleted for room`, error);
 	}
 }
 
@@ -83,9 +83,9 @@ function leaveRoom(
 	if (subscription) {
 		try {
 			leaveSubscriptionChannels(subscription);
-			logger.info(`Left room: ${roomId}`);
+			logger.info(`Left room`);
 		} catch (error) {
-			logError(logger, `Failed to leave room: ${roomId}`, error);
+			logError(logger, `Failed to leave room`, error);
 		}
 	}
 }
@@ -104,11 +104,11 @@ export async function subscribeToRoom(
 	logger: Logger,
 ): Promise<void> {
 	if (subscriptions.has(roomId)) {
-		logger.debug(`Already subscribed to room: ${roomId}`);
+		logger.debug(`Already subscribed to room`);
 		return;
 	}
 
-	logger.debug(`Starting subscription to room: ${roomId}`);
+	logger.debug(`Starting subscription to room`);
 
 	try {
 		const channel = await createAndJoinChatRoomChannel(socket, {
@@ -124,9 +124,9 @@ export async function subscribeToRoom(
 			lastActivity: new Date(),
 		});
 
-		logger.info(`Successfully subscribed to room: ${roomId}`);
+		logger.info(`Successfully subscribed to room`);
 	} catch (error) {
-		logError(logger, `Failed to subscribe to room: ${roomId}`, error);
+		logError(logger, `Failed to subscribe to room`, error);
 
 		throw error;
 	}
