@@ -1,6 +1,7 @@
 import { Logger } from 'n8n-workflow';
 import { BandCredentials, BandApiError } from '../types';
 import { logError, createApiError } from '../utils/errors';
+import { ConnectionDiagnostics } from '../utils/diagnostics';
 import { getHttpUrl } from '../utils/urls';
 
 /**
@@ -12,6 +13,7 @@ export class HttpClient {
 	constructor(
 		private credentials: BandCredentials,
 		private logger: Logger,
+		private diagnostics?: ConnectionDiagnostics,
 	) {
 		this.baseUrl = getHttpUrl(credentials, credentials.useHttps);
 	}
@@ -75,6 +77,7 @@ export class HttpClient {
 		try {
 			const fetchOptions: RequestInit = {
 				method,
+				...(this.diagnostics ? { redirect: 'error' as const } : {}),
 				headers: {
 					accept: 'application/json',
 					'X-API-Key': this.credentials.apiKey,
@@ -90,7 +93,8 @@ export class HttpClient {
 			const response = await fetch(url, fetchOptions);
 
 			if (!response.ok) {
-				const error = await createApiError(response);
+				const responseError = await createApiError(response);
+				const error = this.diagnostics ? this.diagnostics.error(responseError) : responseError;
 				logError(this.logger, 'HTTP request failed', error, {
 					endpoint,
 					method,
@@ -113,11 +117,12 @@ export class HttpClient {
 				endpoint,
 				method,
 				status: response.status,
-				result,
+				...(this.diagnostics ? {} : { result }),
 			});
 
 			return result as T;
-		} catch (error) {
+		} catch (caught) {
+			const error = this.diagnostics ? this.diagnostics.error(caught) : caught;
 			// Log and re-throw if not already a BandApiError
 			if (!(error instanceof BandApiError)) {
 				logError(this.logger, 'HTTP request failed', error, { endpoint, method });

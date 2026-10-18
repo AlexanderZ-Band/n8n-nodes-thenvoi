@@ -1,4 +1,5 @@
 import { ITriggerFunctions, ITriggerResponse, NodeOperationError } from 'n8n-workflow';
+import { testBandCredentials } from '@lib/utils/authValidation';
 import { nodeDescription } from './config/nodeConfig';
 import { initializeRoomModeTrigger } from './handlers/events/roomModes/roomModeController';
 import { BandCredentials } from '@lib/types';
@@ -9,6 +10,8 @@ import { RoomManager } from './managers/RoomManager';
 
 export class BandTrigger {
 	description = nodeDescription;
+
+	methods = { credentialTest: { bandApiTest: testBandCredentials } };
 
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {
 		try {
