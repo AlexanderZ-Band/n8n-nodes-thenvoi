@@ -1,4 +1,3 @@
-import { diagnosticContext } from '@lib/utils/logging';
 import { IExecuteFunctions, INodeExecutionData, INodeType } from 'n8n-workflow';
 import { BandCredentials } from '@lib/types';
 import { nodeDescription } from './config/nodeConfig';
@@ -22,14 +21,13 @@ export class BandAgent implements INodeType {
 	description = nodeDescription;
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const context = diagnosticContext(this);
-		const credentials = (await context.getCredentials('bandApi')) as BandCredentials;
+		const credentials = (await this.getCredentials('bandApi')) as BandCredentials;
 
-		const items = context.getInputData();
+		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
 		for (const [index, item] of items.entries()) {
-			const result = await processAgentItem(context, item, credentials, index);
+			const result = await processAgentItem(this, item, credentials, index);
 			returnData.push(result);
 		}
 

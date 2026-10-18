@@ -177,7 +177,7 @@ If you add or rename package metadata, keep n8n package requirements valid:
 
 ## Authentication regression tests
 
-Run `npm run build` and `npm test` on Node 22+. Tests use real local HTTPS and WSS peers with a public test-only certificate and private key under `tests/fixtures` (never deploy these fixtures). The launcher trusts only that CA through `NODE_EXTRA_CA_CERTS`; TLS verification remains enabled. CI runs on Ubuntu and Windows.
+Run `npm run build` and `npm test` on Node 22+. Tests use real local HTTPS and WSS peers with a public test-only certificate and private key under `tests/fixtures` (never deploy these fixtures). The launcher adds that test CA through `NODE_EXTRA_CA_CERTS`; TLS verification remains enabled. The existing Ubuntu CI job runs these tests.
 
 Band server URLs accept a host and optional API base path, including existing HTTP/HTTPS forms. Legacy `api_key` and `token` query parameters are removed before any request. Other query parameters, fragments and URL user information are rejected locally. HTTP follows Use HTTPS; WebSockets always use WSS. Authentication is sent only through `x-api-key`, including reconnects; deployments must accept this header. There is no query authentication fallback. Credential testing uses the same URL and HTTP authentication validation path as trigger startup.
 

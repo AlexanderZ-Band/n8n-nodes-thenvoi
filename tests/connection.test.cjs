@@ -237,7 +237,8 @@ test('credential-shaped headers and encoded unknown query credentials are remove
 });
 
 test('actual trigger startup rejects sanitized preflight errors without starting a socket', async (t) => {
-	const p = await peer(t, { response: { error: { message: key, code: key, request_id: key } } });
+	const privateData = 'synthetic-person@example.invalid';
+	const p = await peer(t, { response: { error: { message: `${key} ${privateData}`, code: key, request_id: key } } });
 	const { logger, records } = captureLogger();
 	let rejected;
 	try {
@@ -253,6 +254,7 @@ test('actual trigger startup rejects sanitized preflight errors without starting
 	assert.equal(p.requests.length, 1);
 	assert.equal(p.requests[0].type, 'http');
 	noSecrets([rejected, records]);
+	assert.equal(inspect(records, { depth: null }).includes(privateData), false);
 });
 
 test('unsupported configured URLs reject in every entry point before any request', async (t) => {
@@ -297,6 +299,7 @@ test('raw connection logs omit untrusted channel payloads and HTTP user content'
 	const marker = 'synthetic-person@example.invalid 198.51.100.7 private-user-message';
 	const { HttpClient } = require('../dist/lib/http/client');
 	const { createAndJoinChannel } = require('../dist/lib/socket/channels');
+	const { subscribeToRoom } = require('../dist/nodes/BandTrigger/utils/rooms/roomSubscriptions');
 	const { logger, records } = captureLogger();
 	const p = await peer(t, {
 		response: { data: { email: marker } },
@@ -319,10 +322,12 @@ test('raw connection logs omit untrusted channel payloads and HTTP user content'
 	);
 	const refusedSocket = await createSocket(creds(failed.serverUrl), logger);
 	t.after(() => refusedSocket.disconnect());
+	const subscriptions = new Map();
 	await assert.rejects(
-		createAndJoinChannel(refusedSocket, { channelName: `chat_room:${marker}`, events: {}, logger }),
+		subscribeToRoom(refusedSocket, marker, { event: 'message_created' }, subscriptions, () => {}, logger),
 		/Unable to join Band channel/,
 	);
+	assert.equal(subscriptions.size, 0);
 	assert.equal(
 		inspect(records, { depth: null }).includes(marker),
 		false,
@@ -334,48 +339,5 @@ test('raw connection logs omit untrusted channel payloads and HTTP user content'
 		'Raw logger received a cookie',
 	);
 	assert.ok(records.some(({ args }) => args[0] === 'HTTP request failed'));
-});
-
-test('node diagnostic view preserves native context binding and callback outputs while dropping private logs', async () => {
-	require('module-alias/register');
-	const { diagnosticContext } = require('../dist/lib/utils/logging');
-	const {
-		handleLLMStart,
-		handleLLMError,
-		handleLLMEnd,
-	} = require('../dist/nodes/BandAgent/handlers/callbacks/llmCallbacks');
-	const { handleChainStart } = require('../dist/nodes/BandAgent/handlers/callbacks/chainCallbacks');
-	const marker = 'synthetic-person@example.invalid 198.51.100.7 private-user-content';
-	const { logger, records } = captureLogger();
-	class NativeContext {
-		#node = 'native-context';
-		constructor() {
-			Object.defineProperty(this, 'logger', { value: Object.freeze(logger) });
-		}
-		getNode() {
-			return this.#node;
-		}
-	}
-	const native = new NativeContext();
-	const executionContext = diagnosticContext(native);
-	const queued = [];
-	const ctx = {
-		executionContext,
-		options: { collectModelThoughts: true, sendIntermediateThoughts: true },
-		messageQueue: { enqueue: (...args) => queued.push(args) },
-	};
-	assert.equal(executionContext.getNode(), 'native-context');
-	assert.equal(native.logger, logger);
-	await handleLLMStart(ctx, { name: marker }, [marker], marker);
-	await handleChainStart(ctx, { name: marker }, { [marker]: marker }, marker);
-	await handleLLMError(ctx, new Error(marker), marker);
-	const output = await handleLLMEnd(ctx, { generations: [[{ text: marker }]] }, marker);
-	assert.equal(output, marker);
-	assert.deepEqual(queued, [
-		['error', marker],
-		['thought', marker],
-	]);
-	assert.equal(inspect(records, { depth: null }).includes(marker), false);
-	assert.ok(records.some(({ args }) => args[0] === 'LLM execution error'));
-	assert.ok(records.some(({ args }) => args[1].promptCount === 1));
+	assert.ok(records.some(({ args }) => args[0] === 'Failed to subscribe to room'));
 });

@@ -9,7 +9,6 @@ import {
 } from '@lib/types';
 import { TriggerConfig } from '../../types';
 import { createAndJoinChannel, createAndJoinChatRoomChannel } from '@lib/socket';
-import { logError } from '@lib/utils';
 
 // Types
 
@@ -29,13 +28,13 @@ async function handleRoomAdded(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`New room detected`);
+		logger.info('New room detected');
 		await onRoomAdded({
 			...room,
 			updated_at: new Date().toISOString(),
 		});
-	} catch (error) {
-		logError(logger, `Failed to auto-subscribe to room`, error);
+	} catch {
+		logger.error('Failed to auto-subscribe to room');
 	}
 }
 
@@ -48,10 +47,10 @@ async function handleRoomRemoved(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`Room removed event received`);
+		logger.info('Room removed event received');
 		await onRoomRemoved(event.id);
-	} catch (error) {
-		logError(logger, `Failed to handle room_removed for room`, error);
+	} catch {
+		logger.error('Failed to handle room_removed for room');
 	}
 }
 
@@ -64,10 +63,10 @@ async function handleRoomDeleted(
 	logger: Logger,
 ): Promise<void> {
 	try {
-		logger.info(`Room deleted event received`);
+		logger.info('Room deleted event received');
 		await onRoomDeleted(event.id);
-	} catch (error) {
-		logError(logger, `Failed to handle room_deleted for room`, error);
+	} catch {
+		logger.error('Failed to handle room_deleted for room');
 	}
 }
 
@@ -83,9 +82,9 @@ function leaveRoom(
 	if (subscription) {
 		try {
 			leaveSubscriptionChannels(subscription);
-			logger.info(`Left room`);
-		} catch (error) {
-			logError(logger, `Failed to leave room`, error);
+			logger.info('Left room');
+		} catch {
+			logger.error('Failed to leave room');
 		}
 	}
 }
@@ -104,11 +103,11 @@ export async function subscribeToRoom(
 	logger: Logger,
 ): Promise<void> {
 	if (subscriptions.has(roomId)) {
-		logger.debug(`Already subscribed to room`);
+		logger.debug('Already subscribed to room');
 		return;
 	}
 
-	logger.debug(`Starting subscription to room`);
+	logger.debug('Starting subscription to room');
 
 	try {
 		const channel = await createAndJoinChatRoomChannel(socket, {
@@ -124,9 +123,9 @@ export async function subscribeToRoom(
 			lastActivity: new Date(),
 		});
 
-		logger.info(`Successfully subscribed to room`);
+		logger.info('Successfully subscribed to room');
 	} catch (error) {
-		logError(logger, `Failed to subscribe to room`, error);
+		logger.error('Failed to subscribe to room');
 
 		throw error;
 	}
