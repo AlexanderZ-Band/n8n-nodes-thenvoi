@@ -89,6 +89,13 @@ test('URL normalization preserves documented paths and rejects unsupported forms
 	}
 });
 
+test('URL normalization preserves explicit ports when selecting the transport protocol', () => {
+	assert.equal(getSocketUrl('http://host:80/api/v1'), 'wss://host:80/api/v1/socket');
+	assert.equal(getHttpUrl(creds('host:443/api/v1'), false), 'http://host:443/api/v1');
+	assert.equal(getHttpUrl(creds('http://host:80/api/v1'), true), 'https://host:80/api/v1');
+	assert.equal(getSocketUrl('http://[::1]:80/api/v1'), 'wss://[::1]:80/api/v1/socket');
+});
+
 test('HTTP preflight and registered credential test share clean URL/header handling, including insecure HTTP', async (t) => {
 	for (const secure of [true, false]) {
 		const p = await peer(t, { secure }),
